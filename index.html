@@ -3,112 +3,191 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Statistik från Google Sheets</title>
+  <title>ABF Dalarna Statistik</title>
   <style>
-    body { font-family: Arial, sans-serif; background:#f9f9f9; color:#333; text-align:center; padding:40px;}
-    h2 { color:#004080; margin:18px 0 6px; font-size:2rem;}
-    .stat { font-size:1.2rem; margin-bottom:28px; }
-    .number { font-weight:700; color:#cc0000; font-size:1.5rem; display:inline-block; min-width:60px; }
-    #errors { color:#900; margin-top:20px; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    header {
+      background: #fff;
+      color: #d71920;
+      padding: 20px;
+      font-size: 2rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    section {
+      padding: 35px 15px;
+    }
+
+    .goal {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin: 0 0 10px 0;
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      margin: 5px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .today-label, .percent-label {
+      font-size: 1rem;
+      margin: 12px 0 5px;
+    }
+
+    .today-number, .percent-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    /* Blockfärger */
+    #studiecirklar-block {
+      background: #d71920; /* röd */
+      color: #fff;
+    }
+
+    #kulturprogram-block {
+      background: #fff;
+      color: #d71920;
+    }
+
+    #folkbildning-block {
+      background: #1ba6ab; /* turkos */
+      color: #fff;
+    }
+
+    #errors {
+      color: #900;
+      margin: 15px 0;
+    }
   </style>
 </head>
 <body>
-  <h2>1000 Studiecirklar</h2>
-  <div class="stat">
-    Just nu har vi gjort <span class="number" id="Studiecirklar">–</span> studiecirklar. 
-    <span class="percent" id="percent_Studiecirklar"></span>
-  </div>
 
-  <h2>1000 Kulturprogram</h2>
-  <div class="stat">
-    Just nu har vi gjort <span class="number" id="Kulturprogram">–</span> kulturprogram. 
-    <span class="percent" id="percent_Kulturprogram"></span>
-  </div>
+  <!-- HEADER -->
+  <header>
+    ABF DALARNA
+  </header>
 
-  <h2>500 Annan folkbildning</h2>
-  <div class="stat">
-    Just nu har vi gjort <span class="number" id="Annan_folkbildning">–</span> aktiviteter. 
-    <span class="percent" id="percent_Annan_folkbildning"></span>
-  </div>
+  <!-- BLOCK 1 -->
+  <section id="studiecirklar-block">
+    <div class="goal">1000</div>
+    <div class="subtitle">Studiecirklar</div>
+    <div class="today-label">Studiecirklar idag</div>
+    <div class="today-number" id="Studiecirklar">–</div>
+    <div class="percent-label">Procent av målet</div>
+    <div class="percent-number" id="Studiecirklar_percent">–</div>
+  </section>
+
+  <!-- BLOCK 2 -->
+  <section id="kulturprogram-block">
+    <div class="goal">1000</div>
+    <div class="subtitle">Kulturprogram</div>
+    <div class="today-label">Kulturprogram idag</div>
+    <div class="today-number" id="Kulturprogram">–</div>
+    <div class="percent-label">Procent av målet</div>
+    <div class="percent-number" id="Kulturprogram_percent">–</div>
+  </section>
+
+  <!-- BLOCK 3 -->
+  <section id="folkbildning-block">
+    <div class="goal">500</div>
+    <div class="subtitle">Annan folkbildning</div>
+    <div class="today-label">Aktiviteter idag</div>
+    <div class="today-number" id="Annan_folkbildning">–</div>
+    <div class="percent-label">Procent av målet</div>
+    <div class="percent-number" id="Annan_folkbildning_percent">–</div>
+  </section>
 
   <div id="errors" aria-live="polite"></div>
 
-<script>
-const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo4L7NM3fPRZRuNrsQrVHAiUtvV18c61psxi3vxCIk9BvHfgToBOhL9tEnXYpCo5vbLvrGouVhLwUe/pub?output=csv";
+  <script>
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo4L7NM3fPRZRuNrsQrVHAiUtvV18c61psxi3vxCIk9BvHfgToBOhL9tEnXYpCo5vbLvrGouVhLwUe/pub?output=csv";
 
-// Definiera målen för varje typ
-const goals = {
-  Studiecirklar: 1000,
-  Kulturprogram: 1000,
-  Annan_folkbildning: 500
-};
+    const goals = {
+      "Studiecirklar": 1000,
+      "Kulturprogram": 1000,
+      "Annan_folkbildning": 500
+    };
 
-function sanitizeKey(s){
-  return (s || "")
-    .replace(/\uFEFF/g,'')      // ta bort BOM om det finns
-    .trim()
-    .replace(/[^a-zA-Z0-9åäöÅÄÖ]/g, '_'); // ersätt mellanslag/specialtecken med _
-}
-
-// Enkel CSV-parser
-function parseCSV(text){
-  const rows = [];
-  let cur = "", row = [], inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i], next = text[i+1];
-    if (inQuotes) {
-      if (ch === '"') { if(next === '"'){cur+='"'; i++;} else {inQuotes=false;} } 
-      else { cur+=ch; }
-    } else {
-      if (ch === '"'){inQuotes=true;}
-      else if (ch === ','){row.push(cur); cur="";}
-      else if (ch === '\r'){continue;}
-      else if (ch === '\n'){row.push(cur); rows.push(row); row=[]; cur="";}
-      else{cur+=ch;}
+    function sanitizeKey(s){
+      return (s || "")
+        .replace(/\uFEFF/g,'')
+        .trim()
+        .replace(/[^a-zA-Z0-9åäöÅÄÖ]/g, '_');
     }
-  }
-  if(!inQuotes && (cur!==""||row.length)) { row.push(cur); rows.push(row);}
-  return rows;
-}
 
-function showError(msg){
-  document.getElementById('errors').textContent = msg;
-  console.error(msg);
-}
-
-function loadData(){
-  fetch(csvUrl)
-    .then(r => { if(!r.ok) throw new Error("Nätverksfel: "+r.status+" "+r.statusText); return r.text(); })
-    .then(text => {
-      if (text.charCodeAt(0)===0xFEFF) text=text.slice(1);
-      const rows=parseCSV(text);
-      if(!rows||rows.length<1){showError("Kunde inte läsa CSV (tomt). Kontrollera att arket är publicerat."); return;}
-      const header=rows[0].map(h=>(h||"").replace(/\uFEFF/g,'').trim());
-      const typIndex=header.findIndex(h=>h.toLowerCase()==="typ");
-      const antalIndex=header.findIndex(h=>h.toLowerCase()==="antal");
-      if(typIndex===-1||antalIndex===-1){showError("Hittar inte kolumnerna 'Typ' och 'Antal'."); return;}
-
-      for(let i=1;i<rows.length;i++){
-        const r=rows[i]; if(!r||r.length===0) continue;
-        const typ=(r[typIndex]||"").trim();
-        const antal=(r[antalIndex]||"").trim();
-        if(!typ) continue;
-        const id=sanitizeKey(typ);
-        const el=document.getElementById(id);
-        if(el) el.textContent=antal;
-
-        // Räkna procent och skriv ut
-        const percentEl=document.getElementById("percent_"+id);
-        if(percentEl && goals[id]){
-          const pct=Math.round((parseInt(antal)/goals[id])*100);
-          percentEl.textContent=` Det är ${pct}% av målet.`;
+    function parseCSV(text){
+      const rows = [];
+      let cur = ""; let row = []; let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i]; const next = text[i+1];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (next === '"') { cur += '"'; i++; }
+            else { inQuotes = false; }
+          } else { cur += ch; }
+        } else {
+          if (ch === '"') { inQuotes = true; }
+          else if (ch === ',') { row.push(cur); cur = ""; }
+          else if (ch === '\r') { continue; }
+          else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ""; }
+          else { cur += ch; }
         }
       }
-    })
-    .catch(err=>showError("Fel vid hämtning/parsing: "+err.message));
-}
+      if (inQuotes === false && (cur !== "" || row.length)) {
+        row.push(cur); rows.push(row);
+      }
+      return rows;
+    }
 
-document.addEventListener("DOMContentLoaded", loadData);
-</script>
+    function showError(msg){
+      document.getElementById('errors').textContent = msg;
+      console.error(msg);
+    }
+
+    function loadData(){
+      fetch(csvUrl)
+        .then(r => { if (!r.ok) throw new Error("Nätverksfel: " + r.status + " " + r.statusText); return r.text(); })
+        .then(text => {
+          if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+          const rows = parseCSV(text);
+          if (!rows || rows.length < 1) { showError("Kunde inte läsa CSV (tomt)."); return; }
+          const header = rows[0].map(h => (h||"").replace(/\uFEFF/g,'').trim());
+          const typIndex = header.findIndex(h => h.toLowerCase() === "typ");
+          const antalIndex = header.findIndex(h => h.toLowerCase() === "antal");
+          if (typIndex === -1 || antalIndex === -1) { showError("Hittar inte kolumnerna 'Typ' och 'Antal'."); return; }
+
+          for (let i = 1; i < rows.length; i++) {
+            const r = rows[i]; if (!r || r.length === 0) continue;
+            const typ = (r[typIndex] || "").trim();
+            const antal = parseInt((r[antalIndex] || "0").trim(), 10);
+            if (!typ) continue;
+            const id = sanitizeKey(typ);
+            const el = document.getElementById(id);
+            const percentEl = document.getElementById(id + "_percent");
+            if (el) {
+              el.textContent = antal;
+              if (goals[id]) {
+                const percent = Math.round((antal / goals[id]) * 100);
+                if (percentEl) percentEl.textContent = percent + "%";
+              }
+            }
+          }
+        })
+        .catch(err => { showError("Fel vid hämtning/parsing: " + err.message); });
+    }
+
+    document.addEventListener("DOMContentLoaded", loadData);
+  </script>
 </body>
 </html>
