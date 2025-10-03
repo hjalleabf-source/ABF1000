@@ -14,18 +14,34 @@
 </head>
 <body>
   <h2>1000 Studiecirklar</h2>
-  <div class="stat">Just nu har vi gjort <span class="number" id="Studiecirklar">–</span> studiecirklar.</div>
+  <div class="stat">
+    Just nu har vi gjort <span class="number" id="Studiecirklar">–</span> studiecirklar. 
+    <span class="percent" id="percent_Studiecirklar"></span>
+  </div>
 
   <h2>1000 Kulturprogram</h2>
-  <div class="stat">Just nu har vi gjort <span class="number" id="Kulturprogram">–</span> kulturprogram.</div>
+  <div class="stat">
+    Just nu har vi gjort <span class="number" id="Kulturprogram">–</span> kulturprogram. 
+    <span class="percent" id="percent_Kulturprogram"></span>
+  </div>
 
   <h2>500 Annan folkbildning</h2>
-  <div class="stat">Just nu har vi gjort <span class="number" id="Annan_folkbildning">–</span> aktiviteter.</div>
+  <div class="stat">
+    Just nu har vi gjort <span class="number" id="Annan_folkbildning">–</span> aktiviteter. 
+    <span class="percent" id="percent_Annan_folkbildning"></span>
+  </div>
 
   <div id="errors" aria-live="polite"></div>
 
 <script>
 const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo4L7NM3fPRZRuNrsQrVHAiUtvV18c61psxi3vxCIk9BvHfgToBOhL9tEnXYpCo5vbLvrGouVhLwUe/pub?output=csv";
+
+// Definiera målen för varje typ
+const goals = {
+  Studiecirklar: 1000,
+  Kulturprogram: 1000,
+  Annan_folkbildning: 500
+};
 
 function sanitizeKey(s){
   return (s || "")
@@ -34,37 +50,24 @@ function sanitizeKey(s){
     .replace(/[^a-zA-Z0-9åäöÅÄÖ]/g, '_'); // ersätt mellanslag/specialtecken med _
 }
 
-// Enkel, robust CSV-parser (hanterar citationstecken och dubbla citationstecken)
+// Enkel CSV-parser
 function parseCSV(text){
   const rows = [];
-  let cur = "";
-  let row = [];
-  let inQuotes = false;
-
+  let cur = "", row = [], inQuotes = false;
   for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    const next = text[i+1];
-
+    const ch = text[i], next = text[i+1];
     if (inQuotes) {
-      if (ch === '"') {
-        if (next === '"') { cur += '"'; i++; } // escaped quote
-        else { inQuotes = false; }
-      } else {
-        cur += ch;
-      }
+      if (ch === '"') { if(next === '"'){cur+='"'; i++;} else {inQuotes=false;} } 
+      else { cur+=ch; }
     } else {
-      if (ch === '"') { inQuotes = true; }
-      else if (ch === ',') { row.push(cur); cur = ""; }
-      else if (ch === '\r') { continue; }
-      else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ""; }
-      else { cur += ch; }
+      if (ch === '"'){inQuotes=true;}
+      else if (ch === ','){row.push(cur); cur="";}
+      else if (ch === '\r'){continue;}
+      else if (ch === '\n'){row.push(cur); rows.push(row); row=[]; cur="";}
+      else{cur+=ch;}
     }
   }
-  // push remainder
-  if (inQuotes === false && (cur !== "" || row.length)) {
-    row.push(cur);
-    rows.push(row);
-  }
+  if(!inQuotes && (cur!==""||row.length)) { row.push(cur); rows.push(row);}
   return rows;
 }
 
@@ -75,42 +78,34 @@ function showError(msg){
 
 function loadData(){
   fetch(csvUrl)
-    .then(r => {
-      if (!r.ok) throw new Error("Nätverksfel: " + r.status + " " + r.statusText);
-      return r.text();
-    })
+    .then(r => { if(!r.ok) throw new Error("Nätverksfel: "+r.status+" "+r.statusText); return r.text(); })
     .then(text => {
-      // ta bort BOM om den finns
-      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+      if (text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+      const rows=parseCSV(text);
+      if(!rows||rows.length<1){showError("Kunde inte läsa CSV (tomt). Kontrollera att arket är publicerat."); return;}
+      const header=rows[0].map(h=>(h||"").replace(/\uFEFF/g,'').trim());
+      const typIndex=header.findIndex(h=>h.toLowerCase()==="typ");
+      const antalIndex=header.findIndex(h=>h.toLowerCase()==="antal");
+      if(typIndex===-1||antalIndex===-1){showError("Hittar inte kolumnerna 'Typ' och 'Antal'."); return;}
 
-      const rows = parseCSV(text);
-      if (!rows || rows.length < 1) { showError("Kunde inte läsa CSV (tomt). Kontrollera att arket är publicerat."); return; }
+      for(let i=1;i<rows.length;i++){
+        const r=rows[i]; if(!r||r.length===0) continue;
+        const typ=(r[typIndex]||"").trim();
+        const antal=(r[antalIndex]||"").trim();
+        if(!typ) continue;
+        const id=sanitizeKey(typ);
+        const el=document.getElementById(id);
+        if(el) el.textContent=antal;
 
-      const header = rows[0].map(h => (h||"").replace(/\uFEFF/g,'').trim());
-      const typIndex = header.findIndex(h => h.toLowerCase() === "typ");
-      const antalIndex = header.findIndex(h => h.toLowerCase() === "antal");
-
-      if (typIndex === -1 || antalIndex === -1) {
-        showError("Hittar inte kolumnerna 'Typ' och 'Antal' i första raden. Kontrollera rubrikerna i arket.");
-        return;
-      }
-
-      // Processa rader
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        if (!r || r.length === 0) continue;
-        const typ = (r[typIndex] || "").trim();
-        const antal = (r[antalIndex] || "").trim();
-        if (!typ) continue;
-        const id = sanitizeKey(typ);
-        const el = document.getElementById(id);
-        if (el) el.textContent = antal;
-        else console.warn("Saknar element för:", typ, " → förväntat id:", id);
+        // Räkna procent och skriv ut
+        const percentEl=document.getElementById("percent_"+id);
+        if(percentEl && goals[id]){
+          const pct=Math.round((parseInt(antal)/goals[id])*100);
+          percentEl.textContent=` Det är ${pct}% av målet.`;
+        }
       }
     })
-    .catch(err => {
-      showError("Fel vid hämtning/parsing: " + err.message);
-    });
+    .catch(err=>showError("Fel vid hämtning/parsing: "+err.message));
 }
 
 document.addEventListener("DOMContentLoaded", loadData);
